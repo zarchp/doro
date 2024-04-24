@@ -37,6 +37,7 @@ state(['drawer' => false]);
                 minutes: 0,
                 seconds: 0,
                 isRunning: false,
+                isPause: false,
                 timerInterval: null,
                 progressMax: 0,
                 progress: 0,
@@ -49,13 +50,16 @@ state(['drawer' => false]);
                         this.onTimerTick();
                     }, 50);
                     this.isRunning = true;
+                    this.isPause = false;
                 },
                 pauseTimer: function() {
                     clearInterval(this.timerInterval);
                     this.isRunning = false;
+                    this.isPause = true;
                 },
                 stopTimer: function() {
                     this.pauseTimer();
+                    this.isPause = false;
                     this.resetTimer();
                 },
                 onTimerTick: function() {
@@ -122,7 +126,7 @@ state(['drawer' => false]);
                     </div>
                     <div class="flex items-center gap-8">
                         <div class="w-16">
-                            <x-button class="w-16 h-16 btn-circle btn-error" x-cloak x-show="isRunning"
+                            <x-button class="w-16 h-16 btn-circle btn-error" x-cloak x-show="isRunning || isPause"
                                 x-on:click="stopTimer()">
                                 <x-icon name="s-stop" class="w-10 text-white" />
                             </x-button>
