@@ -11,7 +11,7 @@ state(['drawer' => false]);
         <div>
             <x-header title="Pomodoro Timer" size="text-3xl text-primary">
                 <x-slot:actions>
-                    <x-button label="Filters" class="bg-gray-200" x-on:click="$wire.drawer = true" responsive
+                    <x-button label="" class="bg-gray-200" x-on:click="$wire.drawer = true" responsive
                         icon="o-adjustments-horizontal" />
                 </x-slot:actions>
             </x-header>
