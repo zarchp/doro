@@ -16,3 +16,7 @@
 .mary-table-pagination button {
   @apply bg-base-100;
 }
+
+.sortable-ghost {
+  opacity: 0.5 !important;
+}
