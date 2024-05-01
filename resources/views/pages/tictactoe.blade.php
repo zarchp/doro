@@ -10,7 +10,12 @@ use function Livewire\Volt\{state};
     @volt
         <div x-data="{
             turn: 'X',
+            firstTurn: 'X',
             cells: Array(9).fill(''),
+            isAnimating: Array(9).fill(false),
+            isBot: true,
+            difficulties: ['Easy', 'PvP'],
+            selectedDifficulty: 'Easy',
             winner: null,
             isDraw: false,
             score: {
@@ -18,7 +23,6 @@ use function Livewire\Volt\{state};
                 O: 0,
                 draw: 0,
             },
-            isRunning: false,
             combos: [
                 [0, 1, 2],
                 [3, 4, 5],
@@ -29,93 +33,97 @@ use function Livewire\Volt\{state};
                 [0, 4, 8],
                 [2, 4, 6],
             ],
-            toggleTurn() {
-                this.turn = this.turn === 'X' ? 'O' : 'X';
+            resetGame() {
+                this.cells = Array(9).fill('');
+                this.winner = null;
+                this.isDraw = false;
+                this.startBot();
             },
-            checkWinner() {
-                this.combos.forEach((combo) => {
-                    {{-- console.log(this.cells[combo[0]] + ' = ' + this.cells[combo[1]]);
-                    console.log(this.cells[combo[1]] + ' = ' + this.cells[combo[2]]);
-                    console.log('---'); --}}
-                    if (this.cells[combo[0]] !== '' &&
-                        this.cells[combo[0]] === this.cells[combo[1]] &&
-                        this.cells[combo[1]] === this.cells[combo[2]]
-                    ) {
-                        this.winner = this.cells[combo[0]];
-                        this.score[this.winner]++;
-                    }
-        
-                });
-        
-                if (!this.winner && !this.cells.includes('')) {
-                    this.isDraw = true;
-                    this.score['draw']++;
+            resetScore() {
+                this.score = {
+                    X: 0,
+                    O: 0,
+                    draw: 0,
                 }
-                {{-- console.log('-------------------------------------------------'); --}}
             },
-            clickCell(index) {
+            startBot() {
+                if (this.isBot && this.turn === 'O') {
+                    this.botMove();
+                }
+            },
+            setBot(value) {
+                this.isBot = !(this.selectedDifficulty !== 'PvP');
+                this.resetGame();
+                this.resetScore();
+            },
+            humanMove(index) {
                 if (!this.cells.includes('') || this.winner) {
                     this.resetGame();
                     return;
                 }
         
+                this.move(index);
+                this.startBot();
+            },
+            botMove() {
+                let availableCells = this.cells.reduce((acc, cell, index) => {
+                    if (cell === '') {
+                        acc.push(index);
+                    }
+                    return acc;
+                }, []);
+        
+                let randomIndex = Math.floor(Math.random() * availableCells.length);
+                let botMoveIndex = availableCells[randomIndex];
+        
+                setTimeout(() => {
+                    this.move(botMoveIndex);
+                }, 300);
+            },
+            move(index) {
                 if (this.cells[index] !== '' || this.winner) {
                     return;
                 }
         
-        
-                this.cells[index] = this.turn;
+                this.animateCell(index);
+                this.setCell(index);
                 this.checkWinner();
-                {{-- this.write(index); --}}
                 this.toggleTurn();
+                this.toggleFirstTurn();
             },
-            resetGame() {
-                this.cells = Array(9).fill('');
-                this.winner = null;
-                this.isDraw = false;
+            toggleTurn() {
+                this.turn = this.turn === 'X' ? 'O' : 'X';
             },
-            write(index) {
-                let ctx = document.getElementById('canvas-' + index).getContext('2d');
-                let data = {
-                    dashLen: 220,
-                    dashOffset: 220,
-                    speed: 5,
-                    txt: this.turn,
-                    x: 30,
-                    i: 0,
-                };
-        
-                ctx.font = '50px Comic Sans MS, cursive, TSCu_Comic, sans-serif';
-                ctx.lineWidth = 5;
-                ctx.lineJoin = 'round';
-                ctx.globalAlpha = 2 / 3;
-                ctx.strokeStyle = ctx.fillStyle = '#000000';
-        
-                this.loop(ctx, data);
-            },
-            loop(ctx, data) {
-                console.log(data.dashOffset);
-        
-                ctx.clearRect(data.x, 0, 60, 150);
-                ctx.setLineDash([data.dashLen - data.dashOffset, data.dashOffset - data.speed]); // create a long dash mask
-                data.dashOffset -= data.speed; // reduce dash length
-                ctx.strokeText(data.txt[data.i], data.x, 90); // stroke letter
-                if (data.dashOffset > 0) {
-                    console.log('yes');
-                    requestAnimationFrame(this.loop(ctx, data));
-                } else {
-                    console.log('nope');
-                    console.log(data.i);
-                    console.log(data.txt.length);
-                    ctx.fillText(data.txt[data.i], data.x, 90);
-                    data.dashOffset = data.dashLen;
-                    data.x += ctx.measureText(data.txt[data.i++]).width + ctx.lineWidth * Math.random();
-                    ctx.setTransform(1, 0, 0, 1, 0, 3 * Math.random());
-                    ctx.rotate(Math.random() * 0.005);
-                    {{-- if (data.i < data.txt.length) {
-                        requestAnimationFrame(this.loop(ctx, data));
-                    } --}}
+            toggleFirstTurn() {
+                if (this.winner && this.isDraw) {
+                    this.firstTurn = this.firstTurn === 'X' ? 'O' : 'X';
+                    this.turn = this.firstTurn;
                 }
+            },
+            checkWinner() {
+                for (const combo of this.combos) {
+                    const [a, b, c] = combo;
+                    if (this.cells[a] !== '' &&
+                        this.cells[a] === this.cells[b] &&
+                        this.cells[b] === this.cells[c]
+                    ) {
+                        this.winner = this.cells[a];
+                        this.score[this.winner]++;
+                        break;
+                    }
+                }
+        
+                if (!this.winner && !this.cells.includes('')) {
+                    this.isDraw = true;
+                    this.score['draw']++;
+                }
+            },
+            setCell(index) {
+                this.cells[index] = this.turn;
+            },
+            animateCell(index) {
+                this.isAnimating[index] = true;
+                setTimeout(() => this.isAnimating[index] = false, 200);
             },
         }">
             <x-header title="Tic Tac Toe" size="text-3xl text-primary">
@@ -128,22 +136,24 @@ use function Livewire\Volt\{state};
 
             <div class="m-auto w-full h-[calc(100vh-8rem)] justify-center items-center flex flex-col gap-8 px-4">
                 {{-- <div class="text-2xl">Winner: <span x-text="winner"></span></div> --}}
+                <select class="max-w-xs max-24 select select-bordered select-sm" x-model="selectedDifficulty"
+                    x-on:input="setBot($event.target.value)">
+                    <template x-for="difficulty in difficulties">
+                        <option x-text="difficulty" x-bind:selected="difficulty === selectedDifficulty"></option>
+                    </template>
+                </select>
                 <div class="grid grid-cols-3 grid-rows-3">
                     <template x-for="(cell, index) in cells">
                         <div class="flex items-center justify-center border-2 w-28 h-28 lg:w-32 lg:h-32"
-                            x-on:click="clickCell(index)"
+                            x-on:click="humanMove(index)"
                             x-bind:class="{
                                 'border-t-0': [0, 1, 2].includes(index),
                                 'border-r-0': [2, 5, 8].includes(index),
                                 'border-b-0': [6, 7, 8].includes(index),
                                 'border-l-0': [0, 3, 6].includes(index),
                             }">
-                            <div class="transition-all scale-0 text-8xl" x-text="cell"
-                                x-bind:class="{ 'scale-100': cell !== '' }">
+                            <div class="text-8xl" x-bind:class="{ 'animate-popout': isAnimating[index] }" x-text="cell">
                             </div>
-                            {{-- <canvas class="w-full h-full" x-bind:id="'canvas-' + index">
-
-                            </canvas> --}}
                         </div>
                     </template>
                 </div>
@@ -174,7 +184,13 @@ use function Livewire\Volt\{state};
                             'bg-success border-success': winner === 'O',
                         }">
                         <div>
-                            Player (O)
+                            <template x-if="isBot">
+                                <span>Bot</span>
+                            </template>
+                            <template x-if="!isBot">
+                                <span>Player</span>
+                            </template>
+                            (O)
                         </div>
                         <div class="text-2xl font-bold" x-text="score.O"></div>
                     </div>
@@ -184,10 +200,6 @@ use function Livewire\Volt\{state};
                     <x-button icon="o-arrow-path" label="Restart" x-on:click="resetGame" />
                 </div> --}}
             </div>
-
-            {{-- <canvas width=630></canvas> --}}
-
-
         </div>
     @endvolt
 </x-layouts.app>
