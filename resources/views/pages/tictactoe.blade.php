@@ -14,7 +14,7 @@ use function Livewire\Volt\{state};
             cells: Array(9).fill(''),
             isAnimating: Array(9).fill(false),
             isBot: true,
-            difficulties: ['Easy', 'PvP'],
+            difficulties: ['Easy', 'Medium', 'Hard', 'PvP'],
             selectedDifficulty: 'Easy',
             winner: null,
             isDraw: false,
@@ -33,11 +33,14 @@ use function Livewire\Volt\{state};
                 [0, 4, 8],
                 [2, 4, 6],
             ],
+            moves: [],
             resetGame() {
                 this.cells = Array(9).fill('');
                 this.winner = null;
                 this.isDraw = false;
-                this.startBot();
+                if (this.isBot && this.firstTurn === 'O') {
+                    this.startBot(true);
+                }
             },
             resetScore() {
                 this.score = {
@@ -46,15 +49,20 @@ use function Livewire\Volt\{state};
                     draw: 0,
                 }
             },
-            startBot() {
-                if (this.isBot && this.turn === 'O') {
-                    this.botMove();
+            resetTurn() {
+                this.firstTurn = 'X';
+                this.turn = 'X';
+            },
+            startBot(firstTurnBot) {
+                if (this.isBot && !this.winner && !this.isDraw) {
+                    this.botMove(firstTurnBot);
                 }
             },
             setBot(value) {
-                this.isBot = !(this.selectedDifficulty !== 'PvP');
-                this.resetGame();
+                this.isBot = !(value === 'PvP');
                 this.resetScore();
+                this.resetTurn();
+                this.resetGame();
             },
             humanMove(index) {
                 if (!this.cells.includes('') || this.winner) {
@@ -62,29 +70,102 @@ use function Livewire\Volt\{state};
                     return;
                 }
         
-                this.move(index);
-                this.startBot();
-            },
-            botMove() {
-                let availableCells = this.cells.reduce((acc, cell, index) => {
-                    if (cell === '') {
-                        acc.push(index);
-                    }
-                    return acc;
-                }, []);
-        
-                let randomIndex = Math.floor(Math.random() * availableCells.length);
-                let botMoveIndex = availableCells[randomIndex];
-        
-                setTimeout(() => {
-                    this.move(botMoveIndex);
-                }, 300);
-            },
-            move(index) {
                 if (this.cells[index] !== '' || this.winner) {
                     return;
                 }
         
+                this.move(index);
+                this.startBot(false);
+            },
+            botMove(firstTurnBot) {
+                if (this.selectedDifficulty === 'Medium' || this.selectedDifficulty === 'Hard') {
+                    if (firstTurnBot) {
+                        this.delayBotMove(4);
+                        return;
+                    }
+        
+                    let botIndex = this.findBestMove();
+                    this.delayBotMove(botIndex);
+                } else { // easy
+                    let emptyCells = this.getEmptyCells();
+                    let botIndex = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+                    this.delayBotMove(botIndex);
+                }
+        
+                this.moves = [];
+            },
+            delayBotMove(index) {
+                setTimeout(() => {
+                    this.move(index);
+                }, 300);
+            },
+            findBestMove() {
+                let minimax = this.minimax(this.cells, 0, true);
+                let bestScore = -Infinity
+                let depthZero = this.moves.filter((el) => {
+                    if (el.depth == 0) bestScore = Math.max(el.score, bestScore)
+                    return el.depth === 0
+                });
+                let bestMove = depthZero.filter((el) => el.score >= bestScore);
+                let bestMoveRandom = bestMove[Math.floor(Math.random() * bestMove.length)];
+        
+                return bestMoveRandom.move;
+            },
+            minimax(board, depth, isMaximizingPlayer) {
+                let emptyCells = this.getEmptyCells();
+                let maxDepth = this.selectedDifficulty === 'Hard' ? emptyCells.length : 2;
+                {{-- let maxDepth = 5; --}}
+                let winner = this.checkWinningPlayer();
+                if (winner) {
+                    return winner === 'O' ? 10 : (winner === 'X' ? -10 : 0);
+                } else if (board.every((cell) => cell !== '')) {
+                    return 0;
+                }
+        
+                if (depth == maxDepth) {
+                    return 0;
+                }
+        
+                if (isMaximizingPlayer) {
+                    let bestScore = -Infinity;
+                    for (let index of emptyCells) {
+                        board[index] = 'O';
+                        let score = this.minimax(board, depth + 1, false);
+                        board[index] = '';
+                        bestScore = Math.max(bestScore, score);
+                        this.moves.push({ depth, score, move: index, turn: 'O' });
+                    }
+                    return bestScore;
+                } else {
+                    let bestScore = Infinity;
+                    for (let index of emptyCells) {
+                        board[index] = 'X';
+                        let score = this.minimax(board, depth + 1, true);
+                        board[index] = '';
+                        bestScore = Math.min(bestScore, score);
+                        this.moves.push({ depth, score, move: index, turn: 'X' });
+                    }
+                    return bestScore;
+                }
+        
+            },
+            checkWinningPlayer() {
+                for (let combo of this.combos) {
+                    const [a, b, c] = combo;
+                    if (this.cells[a] !== '' &&
+                        this.cells[a] === this.cells[b] &&
+                        this.cells[b] === this.cells[c]
+                    ) {
+                        return this.cells[a];
+                    }
+                }
+        
+                return null;
+            },
+            getEmptyCells() {
+                return this.cells.map((cell, index) => cell === '' ? index : -1).filter(index => index !== -1);
+            },
+            move(index) {
                 this.animateCell(index);
                 this.setCell(index);
                 this.checkWinner();
@@ -95,25 +176,19 @@ use function Livewire\Volt\{state};
                 this.turn = this.turn === 'X' ? 'O' : 'X';
             },
             toggleFirstTurn() {
-                if (this.winner && this.isDraw) {
+                if (this.winner || this.isDraw) {
                     this.firstTurn = this.firstTurn === 'X' ? 'O' : 'X';
                     this.turn = this.firstTurn;
                 }
             },
             checkWinner() {
-                for (const combo of this.combos) {
-                    const [a, b, c] = combo;
-                    if (this.cells[a] !== '' &&
-                        this.cells[a] === this.cells[b] &&
-                        this.cells[b] === this.cells[c]
-                    ) {
-                        this.winner = this.cells[a];
-                        this.score[this.winner]++;
-                        break;
-                    }
+                let winner = this.checkWinningPlayer();
+                if (winner) {
+                    this.winner = winner;
+                    this.score[this.winner]++;
                 }
         
-                if (!this.winner && !this.cells.includes('')) {
+                if (!winner && !this.cells.includes('')) {
                     this.isDraw = true;
                     this.score['draw']++;
                 }
